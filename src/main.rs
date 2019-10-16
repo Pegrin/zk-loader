@@ -1,9 +1,7 @@
-use std::env::args;
-
 use clap::{App, Arg};
 
 fn main() {
-    let matches = App::new("zk-loader")
+    let _matches = App::new("zk-loader")
         .version("0.0.1")
         .author("Khayrutdinov Marat <mail@wtiger.org>")
         .about("Downloads and uploads zookeeper znodes data")
