@@ -41,6 +41,8 @@ pub fn args_parser_config<'a, 'b>() -> App<'a, 'b> {
                 .long("znodes")
                 .value_name("ZNODES")
                 .help("Znodes paths to dump or restore")
+                .takes_value(true)
+                .required(true)
                 .use_delimiter(true)
                 .default_value("/"),
         )
@@ -51,6 +53,7 @@ pub fn args_parser_config<'a, 'b>() -> App<'a, 'b> {
                 .value_name("FILE")
                 .help("Path to data dump file")
                 .takes_value(true)
+                .required(true)
                 .default_value("zk-dump.tar.gz"),
         )
         .arg(
@@ -60,8 +63,7 @@ pub fn args_parser_config<'a, 'b>() -> App<'a, 'b> {
                 .value_name("ZNODES")
                 .help("Excluded znodes")
                 .takes_value(true)
-                .use_delimiter(true)
-                .default_value("/zookeeper"),
+                .use_delimiter(true),
         )
 }
 
@@ -94,6 +96,14 @@ mod tests {
         let parsed = parser.get_matches_from_safe(["zk-loader"].iter());
         let error_kind = parsed.unwrap_err().kind;
         assert_eq!(error_kind, ErrorKind::MissingRequiredArgument)
+    }
+
+    #[test]
+    fn when_dump_and_restore_then_error() {
+        let parser = args_parser_config();
+        let parsed = parser.get_matches_from_safe(["zk-loader", "-d", "-r"].iter());
+        let error_kind = parsed.unwrap_err().kind;
+        assert_eq!(error_kind, ErrorKind::ArgumentConflict)
     }
 
     #[test]
