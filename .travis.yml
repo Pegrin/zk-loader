@@ -15,9 +15,9 @@ before_install:
   - wget -O zookeeper.tar.gz http://archive.apache.org/dist/zookeeper/zookeeper-${ZOOKEEPER_VERSION}/zookeeper-${ZOOKEEPER_VERSION}.tar.gz
   - mkdir zookeeper
   - tar -zxvf zookeeper.tar.gz -C zookeeper --strip-components 1
-
-before_script:
-  - ./travis/before_script.sh
+  - mkdir /tmp/data
+  - echo -e "tickTime=2000\ndataDir=/tmp/data\nclientPort=2181" > zookeeper/conf/zoo.cfg
+  - zookeeper/bin/zkServer.sh start
 
 env:
   matrix:
