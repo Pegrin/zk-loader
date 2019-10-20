@@ -61,11 +61,13 @@ pub fn args_parser_config<'a, 'b>() -> App<'a, 'b> {
                 .short("e")
                 .long("excluded-znodes")
                 .value_name("ZNODES")
-                .help("Excluded znodes")
+                .help("Excluded znodes. '/zookeeper' will be excluded any way.")
                 .takes_value(true)
                 .use_delimiter(true),
         )
 }
+
+
 
 #[cfg(test)]
 mod tests {
