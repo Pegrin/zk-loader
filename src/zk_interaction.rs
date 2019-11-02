@@ -21,6 +21,7 @@ fn dump_to_targz(zk_client: &ZooKeeper, znode_path: &str, dump_file: &str) {
     let enc = GzEncoder::new(dump_file, Compression::fast());
     let mut tar = tar::Builder::new(enc);
     dump_znode_recursively(zk_client, znode_path, tar.borrow_mut());
+    tar.finish().unwrap();
 }
 
 fn dump_znode_recursively(zk_client: &ZooKeeper, znode_path: &str, tar: &mut Builder<GzEncoder<File>>) {
