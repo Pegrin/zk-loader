@@ -1,6 +1,6 @@
 [package]
 name = "zk-loader"
-version = "0.0.1-aplha"
+version = "0.1.0-aplha"
 authors = ["Khayrutdinov Marat <mail@wtiger.org>"]
 licence = "MIT OR Apache-2.0"
 

@@ -29,4 +29,5 @@ fn main() {
     } else {
         panic!("Expected flag dump or restore, but achieved unexpected state.")
     }
+    println!("Success!");
 }

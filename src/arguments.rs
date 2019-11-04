@@ -4,7 +4,7 @@ use clap::{App, Arg};
 
 pub fn args_parser_config<'a, 'b>() -> App<'a, 'b> {
     App::new("zk-loader")
-        .version("0.0.1")
+        .version("0.1.0-aplha")
         .author("Khayrutdinov Marat <mail@wtiger.org>")
         .about("Downloads and uploads zookeeper znodes data")
         .arg(
