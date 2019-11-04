@@ -68,10 +68,9 @@ pub fn args_parser_config<'a, 'b>() -> App<'a, 'b> {
 }
 
 
-
 #[cfg(test)]
 mod tests {
-    use clap::{Error, ErrorKind, Values};
+    use clap::ErrorKind;
 
     use args_parser_config;
 

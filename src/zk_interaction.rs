@@ -1,11 +1,8 @@
 extern crate zookeeper;
 
 use std::borrow::BorrowMut;
-use std::collections::HashMap;
-use std::fs::{copy, File};
-use std::io::{Read, stdout, Stdout};
-use std::iter::Map;
-use std::ops::{Add, Deref};
+use std::fs::File;
+use std::io::Read;
 use std::time::Duration;
 
 use flate2::Compression;
@@ -47,7 +44,6 @@ pub fn restore(servers: &str, dump_file: &str, znode_paths: Vec<&str>, excluded_
             create_znodes_for_path(&zk_client, znode_path.as_str(), data);
         }
     }
-    for znode_path in znode_paths {}
 }
 
 fn create_znodes_for_path(zk_client: &ZooKeeper, path: &str, data: Vec<u8>) {
