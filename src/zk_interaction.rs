@@ -40,7 +40,9 @@ pub fn restore(servers: &str, dump_file: &str, znode_paths: Vec<&str>, excluded_
         let znode_path = tar_path_to_znode_path(path.to_str().unwrap());
         let is_excluded = excluded_znodes.iter()
             .any(|excluded| znode_path.starts_with(excluded));
-        if !is_excluded {
+        let is_for_restoring = znode_paths.iter()
+            .any(|for_restoring|znode_path.starts_with(for_restoring));
+        if !is_excluded && is_for_restoring {
             create_znodes_for_path(&zk_client, znode_path.as_str(), data);
         }
     }
