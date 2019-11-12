@@ -80,7 +80,10 @@ fn dump_znodes_recursively(zk_client: &ZooKeeper, znode_path: &str, excluded_zno
     if excluded_znodes.contains(&znode_path) {
         return;
     }
-    let (data, _) = zk_client.get_data(znode_path, false).unwrap();
+    let (data, stat) = zk_client.get_data(znode_path, false).unwrap();
+    if stat.is_ephemeral() {
+        return;
+    }
     write_znode_data_to_tar(znode_path, data, tar_archive);
     let children = zk_client.get_children(znode_path, false).unwrap();
     let current_path = ensure_ends_with_slash(znode_path);
@@ -150,10 +153,12 @@ mod tests {
         let root_znode = ("/test_ase2134234", b"123data!".to_vec());
         let excluded_znode = ("/test_ase2134234/2", b"123data!+2".to_vec());
         let child_znode = ("/test_ase2134234/1", b"123data!+1".to_vec());
+        let ephemeral_znode = ("/test_ase2134234/ephemera-znode", b"data".to_vec());
 
         zk.create(root_znode.0, root_znode.1.clone(), Acl::open_unsafe().clone(), CreateMode::Persistent);
         zk.create(child_znode.0, child_znode.1.clone(), Acl::open_unsafe().clone(), CreateMode::Persistent);
         zk.create(excluded_znode.0, excluded_znode.1.clone(), Acl::open_unsafe().clone(), CreateMode::Persistent);
+        zk.create(ephemeral_znode.0, ephemeral_znode.1.clone(), Acl::open_unsafe().clone(), CreateMode::Ephemeral);
 
         dump("localhost:2181", vec![root_znode.0], dump_file, vec![excluded_znode.0]);
         zk.delete(child_znode.0, None);
