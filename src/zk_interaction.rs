@@ -12,16 +12,33 @@ use tar::{Archive, Builder, Header};
 
 use self::zookeeper::{Acl, CreateMode, ZooKeeper};
 
+pub struct ZkLoader<'a> {
+    zk_client: ZooKeeper,
+    znode_paths: Vec<&'a str>,
+    excluded_znodes: Vec<&'a str>,
+    dump_file: &'a str,
+}
+
+impl ZkLoader {
+    pub fn new(servers: &str, znode_paths: Vec<&str>, dump_file: &str, excluded_znodes: Vec<&str>) -> Result<Self, String> {
+        let zk_client = ZooKeeper::connect(servers, Duration::from_secs(15), |_| {}).unwrap();
+        if zk_client.exists("/", false).is_ok() {
+            Ok(ZkLoader { zk_client, znode_paths, excluded_znodes, dump_file })
+        } else {
+            Err("Connection failed: ".to_string())
+        }
+    }
+}
+
 pub fn dump(servers: &str, znode_paths: Vec<&str>, dump_file: &str, excluded_znodes: Vec<&str>) {
-    let zk_client = ZooKeeper::connect(servers, Duration::from_secs(15), |_| {}).unwrap();
-    zk_client.exists("/", false).expect("Connection failed");
+    let loader = ZkLoader::new(servers, znode_paths, dump_file, excluded_znodes).unwrap();
     for znode_path in &znode_paths {
         if zk_client.exists(*znode_path, false).unwrap().is_none() {
             panic!("Expected znode is absent: {}", *znode_path);
         }
     }
     for tree_root_znode_path in znode_paths {
-        dump_znode_tree(&zk_client, tree_root_znode_path, dump_file, &excluded_znodes);
+        dump_znode_tree(&loader.zk_client, tree_root_znode_path, dump_file, &excluded_znodes);
     }
 }
 
@@ -49,12 +66,9 @@ pub fn restore(servers: &str, dump_file: &str, znode_paths: Vec<&str>, excluded_
 }
 
 fn create_znodes_for_path(zk_client: &ZooKeeper, path: &str, data: Vec<u8>) {
-    println!("income {:?}", path);
     let split: Vec<&str> = path.split('/').collect();
-    println!("splited {:?}", split);
     for i in 1..split.len() {
         let new_znode = path_from_n_first_znodes(&split, i);
-        println!("create {}", new_znode.as_str());
         zk_client.create(new_znode.as_str(), vec![], Acl::open_unsafe().clone(), CreateMode::Persistent);
     }
     let new_znode = path_from_n_first_znodes(&split, split.len() - 1);
@@ -105,7 +119,6 @@ fn write_znode_data_to_tar(znode_path: &str, data: Vec<u8>, tar_archive: &mut Bu
     header.set_size(data.len() as u64);
     header.set_cksum();
     let tar_path = znode_path_to_tar_path(znode_path);
-    println!("Writing: {}", tar_path);
     tar_archive.append_data(&mut header, tar_path, data.as_slice()).unwrap();
 }
 
@@ -161,9 +174,9 @@ mod tests {
         zk.create(ephemeral_znode.0, ephemeral_znode.1.clone(), Acl::open_unsafe().clone(), CreateMode::Ephemeral);
 
         dump("localhost:2181", vec![root_znode.0], dump_file, vec![excluded_znode.0]);
-        zk.delete(child_znode.0, None);
-        zk.delete(excluded_znode.0, None);
-        zk.delete(root_znode.0, None);
+        zk.delete(child_znode.0, None).unwrap();
+        zk.delete(excluded_znode.0, None).unwrap();
+        zk.delete(root_znode.0, None).unwrap();
         restore("localhost:2181", dump_file, vec![root_znode.0], vec![excluded_znode.0]);
 
         assert_eq!(zk.get_data(child_znode.0, false).unwrap().0, child_znode.1);
