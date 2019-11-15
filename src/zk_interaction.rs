@@ -19,7 +19,7 @@ pub struct ZkLoader<'a> {
     dump_file: &'a str,
 }
 
-impl <'a> ZkLoader<'a> {
+impl<'a> ZkLoader<'a> {
     pub fn new(servers: &'a str, znode_paths: Vec<&'a str>, dump_file: &'a str, excluded_znodes: Vec<&'a str>) -> Result<Self, String> {
         let zk_client = ZooKeeper::connect(servers, Duration::from_secs(15), |_| {}).unwrap();
         if zk_client.exists("/", false).is_ok() {
@@ -29,10 +29,37 @@ impl <'a> ZkLoader<'a> {
         }
     }
 
-    pub fn all_znodes_exist(&self) -> bool{
+    pub fn all_znodes_exist(&self) -> bool {
         (&self.znode_paths)
             .into_iter()
             .all(|znode_path| self.zk_client.exists(*znode_path, false).unwrap().is_some())
+    }
+
+    pub fn dump_znodes(&self) {
+        for tree_root_znode_path in &self.znode_paths {
+            dump_znode_tree(&self.zk_client, *tree_root_znode_path, &self.dump_file, &self.excluded_znodes);
+        }
+    }
+
+    pub fn restore_znodes(&self) {
+        let tar_gz = File::open((&self).dump_file).expect("Can't read tar file");
+        let tar = GzDecoder::new(tar_gz);
+        let mut archive = Archive::new(tar);
+        let entries = archive.entries().expect("Can't unpack tar file");
+        for file in entries {
+            let mut file = file.unwrap();
+            let mut data: Vec<u8> = Vec::new();
+            file.read_to_end(&mut data).unwrap();
+            let path = file.path().unwrap();
+            let znode_path = tar_path_to_znode_path(path.to_str().unwrap());
+            let is_excluded = (&self).excluded_znodes.iter()
+                .any(|excluded| znode_path.starts_with(excluded));
+            let is_for_restoring = (&self).znode_paths.iter()
+                .any(|for_restoring| znode_path.starts_with(for_restoring));
+            if !is_excluded && is_for_restoring {
+                create_znodes_for_path(&self.zk_client, znode_path.as_str(), data);
+            }
+        }
     }
 }
 
@@ -41,32 +68,12 @@ pub fn dump(servers: &str, znode_paths: Vec<&str>, dump_file: &str, excluded_zno
     if !loader.all_znodes_exist() {
         panic!("Some of dumped znodes are absent");
     }
-    for tree_root_znode_path in loader.znode_paths {
-        dump_znode_tree(&loader.zk_client, tree_root_znode_path, &loader.dump_file, &loader.excluded_znodes);
-    }
+    loader.dump_znodes();
 }
 
 pub fn restore(servers: &str, dump_file: &str, znode_paths: Vec<&str>, excluded_znodes: Vec<&str>) {
-    let zk_client = ZooKeeper::connect(servers, Duration::from_secs(15), |_| {}).unwrap();
-    zk_client.exists("/", false).expect("Connection failed");
-    let tar_gz = File::open(dump_file).expect("Can't read tar file");
-    let tar = GzDecoder::new(tar_gz);
-    let mut archive = Archive::new(tar);
-    let entries = archive.entries().expect("Can't unpack tar file");
-    for file in entries {
-        let mut file = file.unwrap();
-        let mut data: Vec<u8> = Vec::new();
-        file.read_to_end(&mut data).unwrap();
-        let path = file.path().unwrap();
-        let znode_path = tar_path_to_znode_path(path.to_str().unwrap());
-        let is_excluded = excluded_znodes.iter()
-            .any(|excluded| znode_path.starts_with(excluded));
-        let is_for_restoring = znode_paths.iter()
-            .any(|for_restoring|znode_path.starts_with(for_restoring));
-        if !is_excluded && is_for_restoring {
-            create_znodes_for_path(&zk_client, znode_path.as_str(), data);
-        }
-    }
+    let loader = ZkLoader::new(servers, znode_paths, dump_file, excluded_znodes).unwrap();
+    loader.restore_znodes();
 }
 
 fn create_znodes_for_path(zk_client: &ZooKeeper, path: &str, data: Vec<u8>) {
