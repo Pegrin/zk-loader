@@ -19,8 +19,8 @@ pub struct ZkLoader<'a> {
     dump_file: &'a str,
 }
 
-impl ZkLoader {
-    pub fn new(servers: &str, znode_paths: Vec<&str>, dump_file: &str, excluded_znodes: Vec<&str>) -> Result<Self, String> {
+impl <'a> ZkLoader<'a> {
+    pub fn new(servers: &'a str, znode_paths: Vec<&'a str>, dump_file: &'a str, excluded_znodes: Vec<&'a str>) -> Result<Self, String> {
         let zk_client = ZooKeeper::connect(servers, Duration::from_secs(15), |_| {}).unwrap();
         if zk_client.exists("/", false).is_ok() {
             Ok(ZkLoader { zk_client, znode_paths, excluded_znodes, dump_file })
@@ -28,17 +28,21 @@ impl ZkLoader {
             Err("Connection failed: ".to_string())
         }
     }
+
+    pub fn all_znodes_exist(&self) -> bool{
+        (&self.znode_paths)
+            .into_iter()
+            .all(|znode_path| self.zk_client.exists(*znode_path, false).unwrap().is_some())
+    }
 }
 
 pub fn dump(servers: &str, znode_paths: Vec<&str>, dump_file: &str, excluded_znodes: Vec<&str>) {
     let loader = ZkLoader::new(servers, znode_paths, dump_file, excluded_znodes).unwrap();
-    for znode_path in &znode_paths {
-        if zk_client.exists(*znode_path, false).unwrap().is_none() {
-            panic!("Expected znode is absent: {}", *znode_path);
-        }
+    if !loader.all_znodes_exist() {
+        panic!("Some of dumped znodes are absent");
     }
-    for tree_root_znode_path in znode_paths {
-        dump_znode_tree(&loader.zk_client, tree_root_znode_path, dump_file, &excluded_znodes);
+    for tree_root_znode_path in loader.znode_paths {
+        dump_znode_tree(&loader.zk_client, tree_root_znode_path, &loader.dump_file, &loader.excluded_znodes);
     }
 }
 
