@@ -1,6 +1,6 @@
 [package]
 name = "zk-loader"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Khayrutdinov Marat <mail@wtiger.org>"]
 license = "MIT OR Apache-2.0"
 description = "CLI application for downloading and uploading zookeeper znodes data"
