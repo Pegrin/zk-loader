@@ -55,7 +55,7 @@ fn create_znodes_for_path(zk_client: &ZooKeeper, path: &str, data: Vec<u8>) {
     for i in 1..split.len() {
         let new_znode = path_from_n_first_znodes(&split, i);
         println!("create {}", new_znode.as_str());
-        zk_client.create(new_znode.as_str(), vec![], Acl::open_unsafe().clone(), CreateMode::Persistent).unwrap();
+        zk_client.create(new_znode.as_str(), vec![], Acl::open_unsafe().clone(), CreateMode::Persistent);
     }
     let new_znode = path_from_n_first_znodes(&split, split.len() - 1);
     zk_client.set_data(new_znode.as_str(), data, Option::None).unwrap();
