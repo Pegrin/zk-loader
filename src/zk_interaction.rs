@@ -10,7 +10,7 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use tar::{Archive, Builder, Header};
 
-use self::zookeeper::{Acl, CreateMode, ZooKeeper};
+use self::zookeeper::{Acl, CreateMode, ZooKeeper, ZkError};
 
 pub fn dump(servers: &str, znode_paths: Vec<&str>, dump_file: &str, excluded_znodes: Vec<&str>) {
     let zk_client = ZooKeeper::connect(servers, Duration::from_secs(15), |_| {}).unwrap();
@@ -48,13 +48,49 @@ pub fn restore(servers: &str, dump_file: &str, znode_paths: Vec<&str>, excluded_
     }
 }
 
+pub fn delete(servers: &str, znode_paths: Vec<&str>, excluded_znodes: Vec<&str>) {
+    let zk_client = ZooKeeper::connect(servers, Duration::from_secs(15), |_| {}).unwrap();
+    zk_client.exists("/", false).expect("Connection failed");
+    for znode_path in &znode_paths {
+        if zk_client.exists(*znode_path, false).unwrap().is_none() {
+            return;
+        }
+    }
+    for tree_root_znode_path in znode_paths {
+        delete_znode_tree(&zk_client, tree_root_znode_path, &excluded_znodes);
+    }
+}
+
+fn delete_znode_tree(zk_client: &ZooKeeper, tree_root_znode_path: &str, excluded_znodes: &Vec<&str>) {
+    delete_znodes_recursively(zk_client, tree_root_znode_path, excluded_znodes);
+}
+
+fn delete_znodes_recursively(zk_client: &ZooKeeper, znode_path: &str, excluded_znodes: &Vec<&str>) {
+    if excluded_znodes.contains(&znode_path) {
+        return;
+    }
+    let (_, stat) = zk_client.get_data(znode_path, false).unwrap();
+    if stat.is_ephemeral() {
+        panic!(format!("'{}' is an ephemeral znode and can't be removed", znode_path));
+    }
+    let children = zk_client.get_children(znode_path, false).unwrap();
+    let current_path = ensure_ends_with_slash(znode_path);
+    children.iter()
+        .map(|child| current_path.clone() + child)
+        .for_each(|child| delete_znodes_recursively(zk_client, child.as_str(), excluded_znodes));
+    match znode_path {
+        "/" => {zk_client.set_data(znode_path, Vec::new(), Option::None).expect("Can't clear root znode data");},
+        _ => match zk_client.delete(znode_path, Option::None) {
+            Ok(_) => {},
+            Err(err) => println!("Deleting znode '{}' failed. Reason: '{}'", znode_path, err.to_string()),
+        }
+    };
+}
+
 fn create_znodes_for_path(zk_client: &ZooKeeper, path: &str, data: Vec<u8>) {
-    println!("income {:?}", path);
     let split: Vec<&str> = path.split('/').collect();
-    println!("splited {:?}", split);
     for i in 1..split.len() {
         let new_znode = path_from_n_first_znodes(&split, i);
-        println!("create {}", new_znode.as_str());
         zk_client.create(new_znode.as_str(), vec![], Acl::open_unsafe().clone(), CreateMode::Persistent);
     }
     let new_znode = path_from_n_first_znodes(&split, split.len() - 1);
@@ -105,7 +141,6 @@ fn write_znode_data_to_tar(znode_path: &str, data: Vec<u8>, tar_archive: &mut Bu
     header.set_size(data.len() as u64);
     header.set_cksum();
     let tar_path = znode_path_to_tar_path(znode_path);
-    println!("Writing: {}", tar_path);
     tar_archive.append_data(&mut header, tar_path, data.as_slice()).unwrap();
 }
 
@@ -138,7 +173,7 @@ fn tar_path_to_znode_path(tar_path: &str) -> String {
 mod tests {
     use std::time::Duration;
 
-    use zk_interaction::{dump, restore, tar_path_to_znode_path, znode_path_to_tar_path};
+    use zk_interaction::{dump, restore, tar_path_to_znode_path, znode_path_to_tar_path, delete};
 
     use super::zookeeper::{Acl, CreateMode, ZooKeeper};
 
@@ -169,6 +204,24 @@ mod tests {
         assert_eq!(zk.get_data(child_znode.0, false).unwrap().0, child_znode.1);
         assert_eq!(zk.get_data(root_znode.0, false).unwrap().0, root_znode.1);
         assert!(zk.exists(excluded_znode.0, false).unwrap().is_none())
+    }
+
+    #[test]
+    pub fn test_delete() {
+        let zk = zk_client();
+        let root_znode = ("/test_deletion2134234", b"123data!".to_vec());
+        let child_znode = ("/test_deletion2134234/1", b"123data!+1".to_vec());
+        let excluded_znode = ("/test_deletion2134234/2", b"123data!+2".to_vec());
+
+        zk.create(root_znode.0, root_znode.1.clone(), Acl::open_unsafe().clone(), CreateMode::Persistent);
+        zk.create(child_znode.0, child_znode.1.clone(), Acl::open_unsafe().clone(), CreateMode::Persistent);
+        zk.create(excluded_znode.0, excluded_znode.1.clone(), Acl::open_unsafe().clone(), CreateMode::Persistent);
+
+        delete("localhost:2181", vec![root_znode.0], vec![excluded_znode.0]);
+
+        assert!(zk.exists(child_znode.0, false).unwrap().is_none());
+        assert!(zk.exists(root_znode.0, false).unwrap().is_some());
+        assert!(zk.exists(excluded_znode.0, false).unwrap().is_some())
     }
 
     #[test]

@@ -4,7 +4,7 @@ use clap::{App, Arg};
 
 pub fn args_parser_config<'a, 'b>() -> App<'a, 'b> {
     App::new("zk-loader")
-        .version("0.1.0")
+        .version("0.1.2")
         .author("Khayrutdinov Marat <mail@wtiger.org>")
         .about("Downloads and uploads zookeeper znodes data")
         .arg(
@@ -14,7 +14,7 @@ pub fn args_parser_config<'a, 'b>() -> App<'a, 'b> {
                 .help("Dump data from znode to file")
                 .takes_value(false)
                 .required(true)
-                .conflicts_with_all(&["restore", "help"]),
+                .conflicts_with_all(&["restore", "delete", "help"]),
         )
         .arg(
             Arg::with_name("restore")
@@ -23,7 +23,15 @@ pub fn args_parser_config<'a, 'b>() -> App<'a, 'b> {
                 .help("Restore data from file to znode")
                 .takes_value(false)
                 .required(true)
-                .conflicts_with_all(&["dump", "help"]),
+                .conflicts_with_all(&["dump", "delete", "help"]),
+        )
+        .arg(
+            Arg::with_name("delete")
+                .long("delete")
+                .help("Delete znodes recursively")
+                .takes_value(false)
+                .required(true)
+                .conflicts_with_all(&["restore", "dump", "file", "help"])
         )
         .arg(
             Arg::with_name("servers")
@@ -40,7 +48,7 @@ pub fn args_parser_config<'a, 'b>() -> App<'a, 'b> {
                 .short("z")
                 .long("znodes")
                 .value_name("ZNODES")
-                .help("Znodes paths to dump or restore")
+                .help("Znodes paths to dump, restore or delete")
                 .takes_value(true)
                 .required(true)
                 .use_delimiter(true)
@@ -81,6 +89,7 @@ mod tests {
 
         assert!(parsed.is_present("dump"));
         assert!(!parsed.is_present("restore"));
+        assert!(!parsed.is_present("delete"));
     }
 
     #[test]
@@ -89,6 +98,16 @@ mod tests {
         let parsed = parser.get_matches_from(["zk-loader", "-r"].iter());
         assert!(parsed.is_present("restore"));
         assert!(!parsed.is_present("dump"));
+        assert!(!parsed.is_present("delete"));
+    }
+
+    #[test]
+    pub fn one_flag_delete() {
+        let parser = args_parser_config();
+        let parsed = parser.get_matches_from(["zk-loader", "--delete"].iter());
+        assert!(parsed.is_present("delete"));
+        assert!(!parsed.is_present("dump"));
+        assert!(!parsed.is_present("restore"));
     }
 
     #[test]
@@ -103,6 +122,22 @@ mod tests {
     fn when_dump_and_restore_then_error() {
         let parser = args_parser_config();
         let parsed = parser.get_matches_from_safe(["zk-loader", "-d", "-r"].iter());
+        let error_kind = parsed.unwrap_err().kind;
+        assert_eq!(error_kind, ErrorKind::ArgumentConflict)
+    }
+
+    #[test]
+    fn when_dump_and_delete_then_error() {
+        let parser = args_parser_config();
+        let parsed = parser.get_matches_from_safe(["zk-loader", "-d", "--delete"].iter());
+        let error_kind = parsed.unwrap_err().kind;
+        assert_eq!(error_kind, ErrorKind::ArgumentConflict)
+    }
+
+    #[test]
+    fn when_delete_and_file_then_error() {
+        let parser = args_parser_config();
+        let parsed = parser.get_matches_from_safe(["zk-loader", "--delete", "-f", "./some.tar.gz"].iter());
         let error_kind = parsed.unwrap_err().kind;
         assert_eq!(error_kind, ErrorKind::ArgumentConflict)
     }
