@@ -2,7 +2,7 @@
 Downloads and uploads zookeeper znodes data
 
 USAGE:
-    zk-loader.exe [FLAGS] [OPTIONS] --delete --dump --file <FILE> --restore --servers <SERVERS> --znodes <ZNODES>
+    zk-loader.exe [FLAGS] [OPTIONS]
 
 FLAGS:
         --delete     Delete znodes recursively
