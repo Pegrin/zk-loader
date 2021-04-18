@@ -10,7 +10,7 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use tar::{Archive, Builder, Header};
 
-use self::zookeeper::{Acl, CreateMode, ZooKeeper, ZkError};
+use self::zookeeper::{Acl, CreateMode, ZooKeeper};
 
 pub fn dump(servers: &str, znode_paths: Vec<&str>, dump_file: &str, excluded_znodes: Vec<&str>) {
     let zk_client = ZooKeeper::connect(servers, Duration::from_secs(15), |_| {}).unwrap();
@@ -41,7 +41,7 @@ pub fn restore(servers: &str, dump_file: &str, znode_paths: Vec<&str>, excluded_
         let is_excluded = excluded_znodes.iter()
             .any(|excluded| znode_path.starts_with(excluded));
         let is_for_restoring = znode_paths.iter()
-            .any(|for_restoring|znode_path.starts_with(for_restoring));
+            .any(|for_restoring| znode_path.starts_with(for_restoring));
         if !is_excluded && is_for_restoring {
             create_znodes_for_path(&zk_client, znode_path.as_str(), data);
         }
@@ -79,9 +79,9 @@ fn delete_znodes_recursively(zk_client: &ZooKeeper, znode_path: &str, excluded_z
         .map(|child| current_path.clone() + child)
         .for_each(|child| delete_znodes_recursively(zk_client, child.as_str(), excluded_znodes));
     match znode_path {
-        "/" => {zk_client.set_data(znode_path, Vec::new(), Option::None).expect("Can't clear root znode data");},
+        "/" => { zk_client.set_data(znode_path, Vec::new(), Option::None).expect("Can't clear root znode data"); }
         _ => match zk_client.delete(znode_path, Option::None) {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(err) => println!("Deleting znode '{}' failed. Reason: '{}'", znode_path, err.to_string()),
         }
     };
@@ -91,7 +91,9 @@ fn create_znodes_for_path(zk_client: &ZooKeeper, path: &str, data: Vec<u8>) {
     let split: Vec<&str> = path.split('/').collect();
     for i in 1..split.len() {
         let new_znode = path_from_n_first_znodes(&split, i);
-        zk_client.create(new_znode.as_str(), vec![], Acl::open_unsafe().clone(), CreateMode::Persistent);
+        match zk_client.create(new_znode.as_str(), vec![], Acl::open_unsafe().clone(), CreateMode::Persistent) {
+            _ => {} //Probably fine if we can't create it
+        };
     }
     let new_znode = path_from_n_first_znodes(&split, split.len() - 1);
     zk_client.set_data(new_znode.as_str(), data, Option::None).unwrap();
@@ -173,7 +175,7 @@ fn tar_path_to_znode_path(tar_path: &str) -> String {
 mod tests {
     use std::time::Duration;
 
-    use zk_interaction::{dump, restore, tar_path_to_znode_path, znode_path_to_tar_path, delete};
+    use zk_interaction::{delete, dump, restore, tar_path_to_znode_path, znode_path_to_tar_path};
 
     use super::zookeeper::{Acl, CreateMode, ZooKeeper};
 
@@ -181,6 +183,7 @@ mod tests {
         ZooKeeper::connect("localhost:2181", Duration::from_secs(15), |_| {}).unwrap()
     }
 
+    #[allow(unused_must_use)]
     #[test]
     pub fn test_dump_restore() {
         let zk = zk_client();
@@ -206,6 +209,7 @@ mod tests {
         assert!(zk.exists(excluded_znode.0, false).unwrap().is_none())
     }
 
+    #[allow(unused_must_use)]
     #[test]
     pub fn test_delete() {
         let zk = zk_client();
@@ -224,6 +228,7 @@ mod tests {
         assert!(zk.exists(excluded_znode.0, false).unwrap().is_some())
     }
 
+    #[allow(unused_must_use)]
     #[test]
     pub fn tar_path_to_znode_path_test() {
         let zk_path = tar_path_to_znode_path("____data");
