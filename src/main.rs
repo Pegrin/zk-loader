@@ -1,3 +1,5 @@
+#[macro_use] //It shouldn't be here, and it should be used as [dev-dependencies]. If you know how to fix it, it will be sweet of you to do it.
+extern crate serial_test;
 extern crate clap;
 extern crate flate2;
 extern crate tar;
